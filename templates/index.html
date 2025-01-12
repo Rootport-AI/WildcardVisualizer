@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <title>Wildcard Reference Visualizer</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #graph { width: 100%; height: 500px; border: 1px solid black; overflow: scroll; }
+        input, button { margin: 10px 0; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Wildcard Reference Visualizer</h1>
+    <label for="folderPath">Enter the Wildcard Folder Path:</label>
+    <input type="text" id="folderPath" placeholder="e.g., C:/wildcards">
+    <button id="runButton">Run</button>
+    <div id="graph"></div>
+
+    <script>
+        document.getElementById('runButton').addEventListener('click', () => {
+            const folderPath = document.getElementById('folderPath').value;
+            fetch('/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ folderPath })
+            })
+            .then(response => response.json())
+            .then(data => drawGraph(data))
+            .catch(err => console.error('Error:', err));
+        });
+
+        function drawGraph(data) {
+    const width = 800, height = 600;
+
+    // SVG要素を作成
+    const svg = d3.select('#graph')
+        .html("") // 既存のグラフをクリア
+        .append('svg')
+        .attr('width', width)
+        .attr('height', height);
+
+    // 矢印用のマーカーを定義
+    svg.append('defs')
+        .append('marker')
+        .attr('id', 'arrowhead')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 15) // 矢印の位置を調整
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-5L10,0L0,5') // 矢印の形状
+        .attr('fill', '#999'); // 矢印の色
+
+    // シミュレーションの設定
+    const simulation = d3.forceSimulation(data.nodes)
+        .force('link', d3.forceLink(data.links).id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-200))
+        .force('center', d3.forceCenter(width / 2, height / 2));
+
+    // リンク（矢印付きの線）の設定
+    const link = svg.append('g')
+        .selectAll('line')
+        .data(data.links)
+        .enter()
+        .append('line')
+        .attr('stroke', '#999')
+        .attr('stroke-width', 1.5)
+        .attr('marker-end', 'url(#arrowhead)'); // 矢印を追加
+
+    // ノードの設定
+    const node = svg.append('g')
+        .selectAll('circle')
+        .data(data.nodes)
+        .enter()
+        .append('circle')
+        .attr('r', 10)
+        .attr('fill', '#69b3a2')
+        .call(d3.drag()
+            .on('start', dragStarted)
+            .on('drag', dragged)
+            .on('end', dragEnded));
+
+    // ファイル名（ラベル）の設定
+    svg.append('g')
+        .selectAll('text')
+        .data(data.nodes)
+        .enter()
+        .append('text')
+        .attr('x', d => d.x)
+        .attr('y', d => d.y)
+        .attr('dy', -15) // ノードの上にラベルを配置
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '12px')
+        .attr('fill', '#333')
+        .text(d => d.id); // ノードのID（.txtファイル名）を表示
+
+    // シミュレーションのティックごとの動作
+    simulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+        node
+            .attr('cx', d => d.x)
+            .attr('cy', d => d.y);
+
+        svg.selectAll('text') // ラベルの位置をノードに追従させる
+            .attr('x', d => d.x)
+            .attr('y', d => d.y - 15);
+    });
+
+    // ドラッグの動作
+    function dragStarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    function dragEnded(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+}
+
+
+    </script>
+</body>
+</html>
